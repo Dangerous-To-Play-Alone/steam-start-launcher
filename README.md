@@ -17,4 +17,6 @@ Once done you can happily search for your games like you would any other program
 Once all games are fetched the user can tap the "Save All" button to create a shortcut per file in the default Start Menu Folder
 C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Steam Games
 
+The shortcuts themselves utilize the Steam Browser Protocol: https://developer.valvesoftware.com/wiki/Steam_browser_protocol
+
 Note: All shortcuts are stored in a "Steam Games" subfolder for organization. "Save All" first deletes any files here and then generates new ones
