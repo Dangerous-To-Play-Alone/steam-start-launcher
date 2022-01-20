@@ -14,9 +14,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberNotification
+import androidx.compose.ui.window.rememberTrayState
+import androidx.compose.ui.window.rememberWindowState
 import api.Application
 import api.GameService
 import io.kamel.image.KamelImage
@@ -36,54 +46,74 @@ import javax.imageio.ImageIO
 @ExperimentalFoundationApi
 @Composable
 @Preview
-fun App() {
+fun App(
+    windowState: WindowState,
+    onExit: () -> Unit
+) {
+
+    val trayState = rememberTrayState()
+    val notification = rememberNotification("Notification", "Message from MyApp!")
+
+    val coroutineScope = rememberCoroutineScope()
+
+    Tray(
+        state = trayState,
+        icon = MyAppIcon,
+        menu = {
+            Item(
+                "Populate Start Folder",
+                onClick = {
+                    PopulateGamesUseCase().invoke(coroutineScope)
+                }
+            )
+            Item(
+                "Open",
+                onClick = {
+                    windowState.isMinimized = false
+                }
+            )
+            Item(
+                "Close",
+                onClick = onExit
+            )
+        }
+    )
     DesktopMaterialTheme {
 
-        val games by GameService().getGames().collectAsState(null)
-        val coroutineScope = rememberCoroutineScope()
+        val ownedGames by GameRepository().fetchOwnedGames().collectAsState(null)
 
-        val vdf = VDF(File("C:\\Program Files (x86)\\Steam\\steamapps\\libraryfolders.vdf"))
-        val gameIds = vdf.getParent("libraryfolders")?.parents?.map {
-            it?.getParent("apps")?.keys
-        }?.fold(emptyList<String?>()) { list, items -> list + items!! }
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
 
-        games?.let {
-            val ownedGames = it.applist.apps.filter { gameIds?.contains(it.appid.toString()) ?: false }
-
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                Button(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = {
+                        PopulateGamesUseCase().invoke(coroutineScope)
+                    }
                 ) {
-
-                    Button(
-                        modifier = Modifier.padding(4.dp),
-                        onClick = {
-                            File("C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam Games").apply {
-                                this.listFiles()?.forEach { it.delete() }
-                            }
-                            ownedGames.forEach { it.save(coroutineScope) }
-                        }
-                    ) {
-                        Text("Save All")
-                    }
-
-                    Button(
-                        modifier = Modifier.padding(4.dp),
-                        onClick = {
-                            Desktop.getDesktop().open(
-                                File("C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam Games")
-                            )
-                        }
-                    ) {
-                        Text("Open Shortcuts Folder")
-                    }
+                    Text("Save All")
                 }
 
+                Button(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = {
+                        Desktop.getDesktop().open(
+                            File("C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam Games")
+                        )
+                    }
+                ) {
+                    Text("Open Shortcuts Folder")
+                }
+            }
+
+            ownedGames?.let { games ->
                 LazyVerticalGrid(
                     cells = GridCells.Adaptive(256.dp)
                 ) {
-                    items(ownedGames) { game ->
+                    items(games) { game ->
                         Card(
                             modifier = Modifier.height(128.dp)
                                 .padding(8.dp),
@@ -106,21 +136,47 @@ fun App() {
                         }
                     }
                 }
+            }
 
-            }
-        } ?: run {
-            Box(modifier = Modifier.fillMaxSize()) {
-                CircularProgressIndicator()
-            }
         }
-
+    } ?: run {
+        Box(modifier = Modifier.fillMaxSize()) {
+            CircularProgressIndicator()
+        }
     }
+
 }
 
 @ExperimentalFoundationApi
 fun main() = application {
-    Window(onCloseRequest = ::exitApplication) {
-        App()
+
+    val windowState = rememberWindowState()
+
+    Window(
+        state = windowState,
+        onCloseRequest = {
+            windowState.isMinimized = true
+        },
+        icon = MyAppIcon
+    ) {
+        App(
+            windowState = windowState,
+            onExit = ::exitApplication
+        )
+    }
+}
+
+object MyAppIcon : Painter() {
+    override val intrinsicSize = Size(256f, 256f)
+
+    override fun DrawScope.onDraw() {
+        drawOval(Color.Green, Offset(size.width / 4, 0f), Size(size.width / 2f, size.height))
+        drawOval(Color.Blue, Offset(0f, size.height / 4), Size(size.width, size.height / 2f))
+        drawOval(
+            Color.Red,
+            Offset(size.width / 4, size.height / 4),
+            Size(size.width / 2f, size.height / 2f)
+        )
     }
 }
 
@@ -131,7 +187,10 @@ fun Application.save(
     scope.launch(Dispatchers.IO) {
         val url = "steam://run/${app.appid}"
 
-        val file = File("C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam Games\\", "${app.name}.URL")
+        val file = File(
+            "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam Games\\",
+            "${app.name}.URL"
+        )
         val fw = FileWriter(file)
         fw.write("[InternetShortcut]\n")
         fw.write("URL=$url\n")
