@@ -34,6 +34,12 @@ class GameService() {
                 .onEach { Log.debug(it.toString()) }
                 .catch { e -> Log.error(e.message) }
     }
+
+    fun fetchGameIcon(appId: Int): Flow<String> {
+        return flow {
+            this.emit(client.get("https://steamdb.info/app/${appId}/info/"))
+        }
+    }
 }
 
 @Serializable

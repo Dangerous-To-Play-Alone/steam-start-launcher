@@ -1,6 +1,5 @@
 // Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
-import VDF.VDF
 import androidx.compose.desktop.DesktopMaterialTheme
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -19,6 +18,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
@@ -28,7 +28,6 @@ import androidx.compose.ui.window.rememberNotification
 import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
 import api.Application
-import api.GameService
 import io.kamel.image.KamelImage
 import io.kamel.image.lazyPainterResource
 import kotlinx.coroutines.CoroutineScope
@@ -36,11 +35,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.Desktop
-import java.awt.Image
-import java.awt.image.BufferedImage
 import java.io.*
-import java.net.URL
-import javax.imageio.ImageIO
+import java.security.MessageDigest
 
 
 @ExperimentalFoundationApi
@@ -58,7 +54,7 @@ fun App(
 
     Tray(
         state = trayState,
-        icon = MyAppIcon,
+        icon = painterResource("logo.svg"),
         menu = {
             Item(
                 "Populate Start Folder",
@@ -139,10 +135,6 @@ fun App(
             }
 
         }
-    } ?: run {
-        Box(modifier = Modifier.fillMaxSize()) {
-            CircularProgressIndicator()
-        }
     }
 
 }
@@ -154,10 +146,11 @@ fun main() = application {
 
     Window(
         state = windowState,
+        title = "Steam Start Launcher",
         onCloseRequest = {
             windowState.isMinimized = true
         },
-        icon = MyAppIcon
+        icon = painterResource("logo.svg"),
     ) {
         App(
             windowState = windowState,
@@ -185,17 +178,26 @@ fun Application.save(
 ) {
     val app = this
     scope.launch(Dispatchers.IO) {
-        val url = "steam://run/${app.appid}"
+        val url = "steam://rungameid/${app.appid}"
 
         val file = File(
             "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam Games\\",
-            "${app.name}.URL"
+            "${app.name.replace(":", "")}.URL"
         )
         val fw = FileWriter(file)
-        fw.write("[InternetShortcut]\n")
-        fw.write("URL=$url\n")
-        fw.write("IconIndex=0\n")
-        fw.write("IconFile=https://steamcdn-a.akamaihd.net/steam/apps/${appid}/library_600x900.jpg\n")
+
+//        GameService().fetchGameIcon(appid)
+//            .collect {
+                try {
+                    fw.write("[InternetShortcut]\n")
+                    fw.write("URL=$url\n")
+                    fw.write("IconIndex=0\n")
+                    fw.write("IconFile=https://cdn.cloudflare.steamstatic.com/steam/apps/${appid}/hero_capsule.jpg")
+//                    fw.write(it)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+//                }
+            }
 
 
         fw.flush()
@@ -204,3 +206,11 @@ fun Application.save(
         delay(200)
     }
 }
+
+val String.sha1: String
+    get() {
+        val bytes = MessageDigest.getInstance("SHA-1").digest(this.toByteArray())
+        return bytes.joinToString("") {
+            "%02x".format(it)
+        }
+    }
